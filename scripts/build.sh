@@ -19,8 +19,8 @@ echo ">>> 1/4 克隆 frp 源码"
 rm -rf 代码
 git clone --depth 1 --branch "v${VERSION}" https://github.com/fatedier/frp.git 代码
 
-echo ">>> 2/4 应用汉化补丁 汉化/manual.patch"
-git -C 代码 apply 汉化/manual.patch
+echo ">>> 2/4 应用汉化补丁 patch/manual.patch"
+git -C 代码 apply patch/manual.patch
 
 echo ">>> 3/4 编译前端 (frps / frpc)"
 cd 代码/web
@@ -38,4 +38,4 @@ echo "    docker push ${USER}/frps:${VERSION}"
 echo "    docker push ${USER}/frpc:${VERSION}"
 
 # 若需把当前改动重新生成为补丁（上游升级后刷新汉化用）：
-#   cd 代码 && git diff > ../汉化/manual.patch
+#   cd 代码 && git diff > ../patch/manual.patch

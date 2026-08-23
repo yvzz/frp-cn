@@ -79,9 +79,9 @@ jobs:
       - name: 克隆 frp v${{ env.VERSION }} 源码
         run: git clone --depth 1 --branch "v${{ env.VERSION }}" https://github.com/fatedier/frp.git 代码
 
-      - name: 应用汉化补丁（汉化/manual.patch）
+      - name: 应用汉化补丁（patch/manual.patch）
         run: |
-          if ! git -C 代码 apply 汉化/manual.patch; then
+          if ! git -C 代码 apply patch/manual.patch; then
             echo "PATCH_FAILED=true" >> "$GITHUB_ENV"
           fi
 
@@ -95,7 +95,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `汉化补丁在 frp v${{ needs.check.outputs.version }} 上应用失败，请刷新`,
-              body: `上游已更新到 v${{ needs.check.outputs.version }}，但 \`汉化/manual.patch\` 无法干净应用。\n\n请本地重新生成补丁后提交：\n\`\`\`bash\nbash scripts/build.sh ${{ needs.check.outputs.version }}\n# 生成新补丁\ncd 代码 && git diff > ../汉化/manual.patch\n\`\`\``,
+              body: `上游已更新到 v${{ needs.check.outputs.version }}，但 \`patch/manual.patch\` 无法干净应用。\n\n请本地重新生成补丁后提交：\n\`\`\`bash\nbash scripts/build.sh ${{ needs.check.outputs.version }}\n# 生成新补丁\ncd 代码 && git diff > ../patch/manual.patch\n\`\`\``,
               labels: ['汉化待更新']
             })
 
