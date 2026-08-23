@@ -22,3 +22,8 @@
 !scripts
 !scripts/**
 !.dockerignore
+!docker-compose.yml
+!frpc-docker-compose.yml
+!frps-docker-compose.yml
+!frps.toml
+!frpc.toml

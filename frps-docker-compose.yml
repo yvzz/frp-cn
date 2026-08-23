@@ -1,0 +1,26 @@
+# frps 服务端部署（基于你自己的 DockerHub 汉化镜像）
+# 镜像：yvvv/frps  —— 已内嵌中文网页界面，无需额外挂载静态资源
+# 配置：./frps.toml 挂载到容器内 /frp/frps.toml（镜像固定以 -c /frp/frps.toml 启动）
+# 网络：host 模式 —— frps 直接监听宿主机端口，无需 ports 映射（仅 Linux 有效，FnOS 满足）
+
+services:
+  frps:
+    image: yvvv/frps:0.71.0
+    # 也可用 :latest 标签，始终指向最新汉化版：
+    # image: yvvv/frps:latest
+    container_name: frps
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./frps.toml:/frp/frps.toml:ro
+    # 如需持久化日志，可取消下面这行并自行在 frps.toml 里把 log.to 改为文件：
+    # - ./logs:/var/log/frps
+
+# ===== 备选：bridge 模式（非 host，适合不确定端口或需要端口映射隔离的场景）=====
+# 使用 bridge 时把上面 network_mode: host 删掉，并启用下方 ports 映射即可：
+#   ports:
+#     - "7000:7000"     # 客户端连接端口
+#     - "7500:7500"     # Web 控制台
+#     # 启用 HTTP/HTTPS 代理时按需放开：
+#     # - "80:80"
+#     # - "443:443"

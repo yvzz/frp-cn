@@ -1,0 +1,26 @@
+# frpc 客户端部署（基于你自己的 DockerHub 汉化镜像）
+# 镜像：yvvv/frpc  —— 已内嵌中文网页界面，无需额外挂载静态资源
+# 配置：./frpc.toml 挂载到容器内 /frp/frpc.toml（镜像固定以 -c /frp/frpc.toml 启动）
+# 网络：默认 bridge 模式（frpc 主要建立出站连接）。
+#       若 frpc 与 frps 在同一台机器、或代理需要绑定宿主机端口，
+#       取消下方 network_mode: host 注释即可（host 模式下 frpc.toml 的 serverAddr 改填 127.0.0.1）。
+#
+# 启动命令（本文件不是默认名，必须用 -f 指定）：
+#   docker compose -f frpc-docker-compose.yml up -d
+#   docker compose -f frpc-docker-compose.yml logs -f   # 实时看日志
+#   docker compose -f frpc-docker-compose.yml down      # 停止
+# 排错：先确认 frpc.toml 与本文件在同一目录；再看日志里是不是 connection refused（地址/端口/网络问题）。
+
+services:
+  frpc:
+    image: yvvv/frpc:0.71.0
+    # 也可用 :latest 标签，始终指向最新汉化版：
+    # image: yvvv/frpc:latest
+    container_name: frpc
+    restart: unless-stopped
+    # network_mode: host
+    volumes:
+      - ./frpc.toml:/frp/frpc.toml:ro
+    # bridge 模式下，让容器内 host.docker.internal 指向宿主机（配合 frpc.toml 里 serverAddr = "host.docker.internal" 连同机 frps）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
