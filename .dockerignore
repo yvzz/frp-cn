@@ -1,0 +1,8 @@
+# 减小 docker build 上下文、加快构建
+# 注意：不能排除 **/dist，因为 web 前端编译产物需要被 Go embed 进镜像
+.git
+代码/.git
+**/node_modules
+*.md
+.workbuddy
+图片
