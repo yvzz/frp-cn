@@ -13,9 +13,11 @@
 
 services:
   frpc:
-    image: yvvv/frpc:0.71.0
+    # 镜像标签：默认 amd64。run-frpc.sh 会按宿主机架构自动换成 ...-arm64 版本
+    # 也可手动指定：FRP_IMAGE=yvvv/frpc:0.71.0-arm64 docker compose -f frpc-docker-compose.yml up -d
+    image: ${FRP_IMAGE:-yvvv/frpc:0.71.0}
     # 也可用 :latest 标签，始终指向最新汉化版：
-    # image: yvvv/frpc:latest
+    # image: ${FRP_IMAGE:-yvvv/frpc:latest}
     container_name: frpc
     restart: unless-stopped
     # network_mode: host
@@ -24,3 +26,6 @@ services:
     # bridge 模式下，让容器内 host.docker.internal 指向宿主机（配合 frpc.toml 里 serverAddr = "host.docker.internal" 连同机 frps）
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # frpc Web 管理面板端口（需在 frpc.toml 启用 webServer）；不需要可删掉本行
+    ports:
+      - "7400:7400"

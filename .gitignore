@@ -27,3 +27,5 @@
 !frps-docker-compose.yml
 !frps.toml
 !frpc.toml
+!run-frpc.sh
+!run-frps.sh
