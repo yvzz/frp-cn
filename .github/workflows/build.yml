@@ -79,28 +79,37 @@ jobs:
       - name: 克隆 frp v${{ env.VERSION }} 源码
         run: git clone --depth 1 --branch "v${{ env.VERSION }}" https://github.com/fatedier/frp.git 代码
 
-      - name: 应用汉化补丁（patch/manual.patch）
+      # ---------- 自动汉化（规则驱动，无需 manual.patch，完全脱离本地） ----------
+      # 汉化资产(汉化/*.json + 汉化/汉化.ts)已随仓库 checkout，
+      # 这里用 Bun 跑 汉化/汉化.ts 把中文规则灌入 代码/ 源码（原地覆盖）。
+      - name: 安装 Bun 运行时
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: 应用汉化规则（汉化/汉化.ts → 代码/）
+        id: hanhua
         run: |
-          if ! git -C 代码 apply "${GITHUB_WORKSPACE}/patch/manual.patch"; then
-            echo "PATCH_FAILED=true" >> "$GITHUB_ENV"
+          if ! bash scripts/apply-hanhua.sh; then
+            echo "HANHUA_FAILED=true" >> "$GITHUB_ENV"
           fi
 
-      # 上游升级导致补丁失配时，开 issue 提醒人工刷新，而不是静默失败
-      - name: 补丁失配 → 开 issue 报警
-        if: env.PATCH_FAILED == 'true'
+      # 上游升级导致英文串变更、规则失效时，开 issue 提醒刷新 汉化/*.json，而非静默失败
+      - name: 汉化失败 → 开 issue 报警
+        if: env.HANHUA_FAILED == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `汉化补丁在 frp v${{ needs.check.outputs.version }} 上应用失败，请刷新`,
-              body: `上游已更新到 v${{ needs.check.outputs.version }}，但 \`patch/manual.patch\` 无法干净应用。\n\n请本地重新生成补丁后提交：\n\`\`\`bash\nbash scripts/build.sh ${{ needs.check.outputs.version }}\n# 生成新补丁\ncd 代码 && git diff > ../patch/manual.patch\n\`\`\``,
+              title: `汉化规则在 frp v${{ needs.check.outputs.version }} 上应用失败，请刷新`,
+              body: `上游已更新到 v${{ needs.check.outputs.version }}，部分 \`汉化/*.json\` 规则无法匹配（规则文件缺失或英文原文串已变更）。\n\n请本地按 \`汉化/汉化和修改.md\` 的映射，更新对应规则 json 后提交：\n\`\`\`bash\n# 1. 克隆 frp v${{ needs.check.outputs.version }} 到 代码/\n# 2. 修改 汉化/ 下失配的规则 json（原文串需与上游一致）\n# 3. 提交，重新 Run workflow\n\`\`\``,
               labels: ['汉化待更新']
             })
 
-      - name: 补丁失败 → 中止本任务
-        if: env.PATCH_FAILED == 'true'
+      - name: 汉化失败 → 中止本任务
+        if: env.HANHUA_FAILED == 'true'
         run: exit 1
 
       - name: 安装 Node.js (前端编译)

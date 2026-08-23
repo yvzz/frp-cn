@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+#
+# apply-hanhua.sh —— 批量应用汉化规则到 frp 源码
+#
+# 前置条件:
+#   1. 本脚本必须在「仓库根目录」运行(CWD = frp-cn 根),
+#      因为 汉化/汉化.ts 内部用 process.cwd() 拼接绝对路径,
+#      且命令里 汉化.ts 以相对路径 ./汉化/汉化.ts 调用。
+#   2. frp 源码已克隆到 ./代码 (由 CI 的 git clone 步骤创建)。
+#   3. 已安装 Bun 运行时(本地: brew install oven-sh/bun; CI: oven-sh/setup-bun)。
+#
+# 行为:
+#   - 解析 汉化/汉化和修改.md 中所有 `bun ./汉化/汉化.ts <规则.json> <目标>` 命令
+#   - 逐条执行,把中文规则灌入 frp 源码(原地覆盖写回)
+#   - 捕获每条的「未匹配」原文串;若任一规则文件缺失或存在未匹配,则非零退出
+#   - 末尾汇总,供 CI 失败时在 issue 中展示
+#
+# 退出码:
+#   0 = 全部成功
+#   1 = 有规则文件缺失 / 有原文串未匹配 / 汉化.ts 自身报错
+#
+set -uo pipefail
+
+# 确保运行在仓库根目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
+SRC_DIR="${REPO_ROOT}/代码"
+MANIFEST="${REPO_ROOT}/汉化/汉化和修改.md"
+RUNNER="${REPO_ROOT}/汉化/汉化.ts"
+
+# ---- 环境检查 ----
+if [ ! -d "${SRC_DIR}" ]; then
+  echo "ERROR: 未找到 frp 源码目录: ${SRC_DIR}"
+  echo "       请先 git clone fatedier/frp 到 ./代码 再运行本脚本。"
+  exit 1
+fi
+
+if [ ! -f "${RUNNER}" ]; then
+  echo "ERROR: 未找到汉化执行器: ${RUNNER}"
+  exit 1
+fi
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "ERROR: 未检测到 Bun 运行时,请先安装: https://bun.sh (或 CI 用 oven-sh/setup-bun)"
+  exit 1
+fi
+
+if [ ! -f "${MANIFEST}" ]; then
+  echo "ERROR: 未找到汉化清单: ${MANIFEST}"
+  exit 1
+fi
+
+# ---- 从清单提取 bun 命令 ----
+# 每行形如:  bun ./汉化/汉化.ts 汉化/xxx.json 代码/path/to/file
+# 清单路径含中文目录,用 python 提取以避免 shell 引号/编码问题
+MAP_CMDS="$(python3 - "${MANIFEST}" <<'PY'
+import re, sys, io
+md = io.open(sys.argv[1], encoding='utf-8').read()
+for m in re.findall(r'bun\s+\./汉化/汉化\.ts\s+(\S+\.json)\s+(\S+)', md):
+    print(f"{m[0]}\t{m[1]}")
+PY
+)"
+
+if [ -z "${MAP_CMDS}" ]; then
+  echo "ERROR: 从清单中未解析到任何 bun 汉化命令"
+  exit 1
+fi
+
+TOTAL=0
+OK=0
+FAIL_LIST=()
+UNMATCHED_LIST=()
+
+echo "=================================================="
+echo " 开始批量汉化 (共 $(echo "${MAP_CMDS}" | wc -l | tr -d ' ') 条规则)"
+echo "=================================================="
+
+while IFS=$'\t' read -r RULE_FILE TARGET_FILE; do
+  [ -z "${RULE_FILE}" ] && continue
+  TOTAL=$((TOTAL+1))
+
+  # 规则文件以仓库根为基准;目标文件形如 代码/cmd/... 以仓库根为基准
+  RULE_ABS="${REPO_ROOT}/${RULE_FILE}"
+  TARGET_ABS="${REPO_ROOT}/${TARGET_FILE}"
+
+  if [ ! -f "${RULE_ABS}" ]; then
+    echo "  [FAIL ${TOTAL}] 规则文件缺失: ${RULE_FILE}"
+    FAIL_LIST+=("${RULE_FILE}")
+    continue
+  fi
+  if [ ! -f "${TARGET_ABS}" ]; then
+    echo "  [FAIL ${TOTAL}] 目标源码不存在(上游可能改名/移除): ${TARGET_FILE}"
+    FAIL_LIST+=("${TARGET_FILE}")
+    continue
+  fi
+
+  # 执行汉化.ts —— 必须在仓库根目录运行,因为它用 process.cwd() 拼路径
+  OUT="$(bun "./汉化/汉化.ts" "${RULE_FILE}" "${TARGET_FILE}" 2>&1)"
+  RC=$?
+
+  if [ ${RC} -ne 0 ]; then
+    echo "  [FAIL ${TOTAL}] 汉化.ts 执行失败 (rc=${RC}): ${RULE_FILE} -> ${TARGET_FILE}"
+    echo "${OUT}" | sed 's/^/      /'
+    FAIL_LIST+=("${TARGET_FILE}")
+    continue
+  fi
+
+  # 捕获「未匹配」原文串(汉化.ts 输出中以 "  - 内容：[ ... ]" 形式列出)
+  UNM="$(echo "${OUT}" | grep -E '^[[:space:]]*-[[:space:]]*内容：\[' | sed -E 's/^[[:space:]]*-[[:space:]]*内容：\[[[:space:]]*//; s/[[:space:]]*\][[:space:]]*$//')"
+  if [ -n "${UNM}" ]; then
+    echo "  [WARN ${TOTAL}] 部分原文未匹配: ${TARGET_FILE}"
+    while IFS= read -r u; do
+      [ -n "$u" ] && UNMATCHED_LIST+=("${TARGET_FILE} :: ${u}")
+    done <<< "${UNM}"
+  fi
+
+  echo "  [OK ${TOTAL}] ${TARGET_FILE}"
+  OK=$((OK+1))
+done <<< "${MAP_CMDS}"
+
+echo ""
+echo "=================================================="
+echo " 汉化汇总: 成功 ${OK}/${TOTAL}"
+echo "=================================================="
+
+# ---- 结构性改动：frps 前端 main.ts 注入 Element Plus 中文语言包 ----
+# 该改动是「插入代码」而非字符串替换，汉化.ts 不处理，这里单独幂等注入。
+MAIN_TS="${SRC_DIR}/web/frps/src/main.ts"
+if [ -f "${MAIN_TS}" ]; then
+  if grep -q "zh-cn" "${MAIN_TS}"; then
+    echo "  [SKIP] main.ts 已含中文语言包配置，跳过注入"
+  else
+    # 在 app.mount('#app') 之前插入 Element Plus 中文 locale
+    python3 - "${MAIN_TS}" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding='utf-8').read()
+inject = (
+    "import ElementPlus from 'element-plus'\n"
+    "import zhCn from 'element-plus/es/locale/lang/zh-cn'\n"
+    "\n"
+    "app.use(ElementPlus, {\n"
+    "  locale: zhCn,\n"
+    "})\n"
+)
+# 插入点：在 app.mount('#app') 之前
+marker = "app.mount('#app')"
+assert marker in s, "未找到插入锚点 app.mount('#app')"
+if "zh-cn" not in s:
+    s = s.replace(marker, inject + "\n" + marker, 1)
+io.open(p, 'w', encoding='utf-8').write(s)
+print("  [OK] main.ts 已注入 Element Plus 中文语言包")
+PY
+    if [ $? -ne 0 ]; then
+      echo "  [FAIL] main.ts 注入失败"
+      FAIL_LIST+=("web/frps/src/main.ts (注入失败)")
+    fi
+  fi
+else
+  echo "  [WARN] 未找到 ${MAIN_TS}，跳过 main.ts 注入（可能上游已移除该文件）"
+fi
+
+
+if [ ${#FAIL_LIST[@]} -gt 0 ]; then
+  echo ""
+  echo "FAIL/MISSING (${#FAIL_LIST[@]}):"
+  for x in "${FAIL_LIST[@]}"; do echo "   - ${x}"; done
+fi
+
+if [ ${#UNMATCHED_LIST[@]} -gt 0 ]; then
+  echo ""
+  echo "UNMATCHED (${#UNMATCHED_LIST[@]}), 上游可能已改文案,需刷新规则:"
+  for x in "${UNMATCHED_LIST[@]}"; do echo "   - ${x}"; done
+fi
+
+# 任一失败(规则/目标缺失)→ 非零退出,让 CI 开 issue
+if [ ${#FAIL_LIST[@]} -gt 0 ]; then
+  exit 1
+fi
+
+echo "汉化应用完成。"
+exit 0

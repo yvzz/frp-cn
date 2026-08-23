@@ -1,0 +1,14 @@
+[
+  {
+    "原文": "custom domain [%s] should not belong to subdomain host",
+    "翻译": "自定义域名 [%s] 不应属于子域名主机"
+  },
+  {
+    "原文": "subdomain is not supported because this feature is not enabled in server",
+    "翻译": "不支持子域名，因为服务器未启用该功能"
+  },
+  {
+    "原文": "'.' and '*' are not supported in subdomain",
+    "翻译": "子域名中不支持使用 '.' 和 '*' 字符"
+  }
+]
