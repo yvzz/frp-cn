@@ -36,3 +36,7 @@ frpc.toml
 .DS_Store
 example/**/frps.toml
 example/**/frpc.toml
+# example 下的部署文件（docker-compose）需要入库，供他人克隆后直接部署
+!example
+!example/**
+!example/**/docker-compose*.yml

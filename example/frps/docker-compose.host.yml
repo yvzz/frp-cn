@@ -1,0 +1,23 @@
+# frps 服务端部署 —— host 网络模式（适配 yvvv/frps 汉化镜像）
+# 适用：Linux 宿主机（FnOS / 群晖 / 裸机 / 服务器）
+# 说明：
+#   - host 模式下 frps 直接监听宿主机端口，上面的 ports 映射段失效，故删除。
+#   - vhostHTTPPort=80 / vhostHTTPSPort=443 是特权端口（<1024），容器内默认无权限绑定，
+#     必须加 cap_add: NET_BIND_SERVICE，否则 frps 启动即退出（表现为“构建失败”）。
+#   - macOS Docker Desktop 不支持 host 模式，请用 docker-compose.yml（bridge 版）。
+
+services:
+  frps:
+    image: yvvv/frps:0.71.0
+    # 或 image: yvvv/frps:latest
+    container_name: frps
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_BIND_SERVICE
+    volumes:
+      # 注意：不要加 :ro，否则 Web 面板“更新并重载”写回 /frp/frps.toml 会失败(HTTP 500)
+      # 用 ${PWD} 绝对路径，无论从哪个目录执行 docker compose -f 都能正确找到配置文件
+      - ${PWD}/frps.toml:/frp/frps.toml
+    # 如需持久化日志，可取消下面这行并在 frps.toml 里把 log.to 改为文件：
+    # - ./logs:/var/log/frps
