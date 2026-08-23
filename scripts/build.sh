@@ -20,7 +20,7 @@ rm -rf 代码
 git clone --depth 1 --branch "v${VERSION}" https://github.com/fatedier/frp.git 代码
 
 echo ">>> 2/4 应用汉化补丁 patch/manual.patch"
-git -C 代码 apply patch/manual.patch
+git -C 代码 apply "$(pwd)/patch/manual.patch"
 
 echo ">>> 3/4 编译前端 (frps / frpc)"
 cd 代码/web

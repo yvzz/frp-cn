@@ -81,7 +81,7 @@ jobs:
 
       - name: 应用汉化补丁（patch/manual.patch）
         run: |
-          if ! git -C 代码 apply patch/manual.patch; then
+          if ! git -C 代码 apply "${GITHUB_WORKSPACE}/patch/manual.patch"; then
             echo "PATCH_FAILED=true" >> "$GITHUB_ENV"
           fi
 
