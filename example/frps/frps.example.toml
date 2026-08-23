@@ -17,9 +17,11 @@ webServer.password = "<控制台密码>"
 auth.method = "token"
 auth.token = "<改成你自己的强随机token>"
 
-# 启用 HTTP/HTTPS 类型代理时需放开对应 vhost 端口（host 模式直接绑宿主机）
-# vhostHTTPPort = 80
-# vhostHTTPSPort = 443
+# 启用 HTTP/HTTPS 类型代理时需放开对应 vhost 端口
+# host 模式：直接绑宿主机 80/443，需 compose 加 cap_add: NET_BIND_SERVICE
+# bridge 模式：绑容器内部 80/443，同样需 cap_add，再经 ports 映射到宿主机
+vhostHTTPPort = 80
+vhostHTTPSPort = 443
 
 # 日志
 log.to = "console"
