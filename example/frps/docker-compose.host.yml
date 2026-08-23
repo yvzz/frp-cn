@@ -2,9 +2,14 @@
 # 适用：Linux 宿主机（FnOS / 群晖 / 裸机 / 服务器）
 # 说明：
 #   - host 模式下 frps 直接监听宿主机端口，上面的 ports 映射段失效，故删除。
-#   - vhostHTTPPort=80 / vhostHTTPSPort=443 是特权端口（<1024），容器内默认无权限绑定，
-#     必须加 cap_add: NET_BIND_SERVICE，否则 frps 启动即退出（表现为“构建失败”）。
-#   - macOS Docker Desktop 不支持 host 模式，请用 docker-compose.yml（bridge 版）。
+#   - 本文件用 `docker compose -f docker-compose.host.yml up -d` 启动，
+#     不是 `build`（compose 里没有 build 段，直接引用现成镜像 yvvv/frps:0.71.0）。
+#   - vhostHTTPPort / vhostHTTPSPort 已设为非特权端口 8080/8443，
+#     因为 NAS / 服务器常自带 nginx 占用 0.0.0.0:80/443，host 模式直接绑 80/443 会
+#     端口冲突 → frps 启动即退出（容器 Restarting）。如确需真 80/443，先停占用服务
+#     或改用 docker-compose.yml（bridge 版）+ ports 映射。
+#   - cap_add: NET_BIND_SERVICE 保留：若日后改回 <1024 特权端口仍可绑。
+#   - macOS 上 Docker Desktop 的虚拟化框架已支持 host 网络，实际可跑；但生产建议放 Linux 宿主机。
 
 services:
   frps:

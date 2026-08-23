@@ -18,10 +18,12 @@ auth.method = "token"
 auth.token = "<改成你自己的强随机token>"
 
 # 启用 HTTP/HTTPS 类型代理时需放开对应 vhost 端口
-# host 模式：直接绑宿主机 80/443，需 compose 加 cap_add: NET_BIND_SERVICE
-# bridge 模式：绑容器内部 80/443，同样需 cap_add，再经 ports 映射到宿主机
-vhostHTTPPort = 80
-vhostHTTPSPort = 443
+# host 模式：直接绑宿主机端口；bridge 模式：绑容器内部端口再经 ports 映射
+# ⚠️ 不要用 80/443：NAS / 服务器常自带 nginx 监听 0.0.0.0:80/443，host 模式下
+#    frps 会与其冲突导致启动即退出（容器 Restarting）。改用非特权端口规避。
+#    如需真 80/443，请改用 bridge 模式 + ports 映射，或先停掉占用 80/443 的系统服务。
+vhostHTTPPort = 8080
+vhostHTTPSPort = 8443
 
 # 日志
 log.to = "console"
