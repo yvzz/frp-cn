@@ -22,7 +22,8 @@ services:
     restart: unless-stopped
     # network_mode: host
     volumes:
-      - ./frpc.toml:/frp/frpc.toml:ro
+      # 注意：不要加 :ro，否则 Web 面板"更新并重载"写回 /frp/frpc.toml 会失败(HTTP 500)
+      - ./frpc.toml:/frp/frpc.toml
     # bridge 模式下，让容器内 host.docker.internal 指向宿主机（配合 frpc.toml 里 serverAddr = "host.docker.internal" 连同机 frps）
     extra_hosts:
       - "host.docker.internal:host-gateway"

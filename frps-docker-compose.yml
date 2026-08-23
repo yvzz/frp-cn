@@ -14,7 +14,8 @@ services:
     restart: unless-stopped
     network_mode: host
     volumes:
-      - ./frps.toml:/frp/frps.toml:ro
+      # 注意：不要加 :ro，否则 Web 面板"更新并重载"写回 /frp/frps.toml 会失败(HTTP 500)
+      - ./frps.toml:/frp/frps.toml
     # 如需持久化日志，可取消下面这行并自行在 frps.toml 里把 log.to 改为文件：
     # - ./logs:/var/log/frps
 
