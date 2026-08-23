@@ -123,27 +123,51 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 构建并推送 frps
+      # amd64 镜像：沿用原 tag（:VERSION 与 :latest），保持现有部署不变
+      - name: 构建并推送 frps (amd64)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile-frps
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:latest
 
-      - name: 构建并推送 frpc
+      # arm64 镜像：单独打 -arm64 标签，供 ARM 设备（树莓派、N1、飞牛等）使用
+      - name: 构建并推送 frps (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile-frps
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/frps:${{ env.VERSION }}-arm64
+
+      # amd64 镜像：沿用原 tag（:VERSION 与 :latest），保持现有部署不变
+      - name: 构建并推送 frpc (amd64)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile-frpc
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:latest
+
+      # arm64 镜像：单独打 -arm64 标签，供 ARM 设备使用
+      - name: 构建并推送 frpc (arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile-frpc
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/frpc:${{ env.VERSION }}-arm64
 
       # 构建成功后，把 VERSION 回写为本次版本，下次定时任务据此跳过
       - name: 回写 VERSION 并提交
