@@ -25,7 +25,11 @@
 !docker-compose.yml
 !frpc-docker-compose.yml
 !frps-docker-compose.yml
-!frps.toml
-!frpc.toml
+# 真实配置文件含隐私（token/密码/服务器域名），不纳入版本控制
+frps.toml
+frpc.toml
+# 脱敏示例模板保留在仓库，供他人克隆后照填
+!frps.example.toml
+!frpc.example.toml
 !run-frpc.sh
 !run-frps.sh
