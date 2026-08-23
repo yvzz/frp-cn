@@ -1,4 +1,4 @@
-name: 构建 frp 汉化镜像
+name: Build Frp Chinese Docker images
 
 # 触发方式：
 #   1. 定时：每天 UTC 03:00 检查 fatedier/frp 是否有新 release
