@@ -80,21 +80,21 @@ jobs:
         run: git clone --depth 1 --branch "v${{ env.VERSION }}" https://github.com/fatedier/frp.git 代码
 
       # ---------- 自动汉化（规则驱动，无需 manual.patch，完全脱离本地） ----------
-      # 汉化资产(汉化/*.json + 汉化/汉化.ts)已随仓库 checkout，
-      # 这里用 Bun 跑 汉化/汉化.ts 把中文规则灌入 代码/ 源码（原地覆盖）。
+      # 汉化资产(hanhua/*.json + hanhua/汉化.ts)已随仓库 checkout，
+      # 这里用 Bun 跑 hanhua/汉化.ts 把中文规则灌入 代码/ 源码（原地覆盖）。
       - name: 安装 Bun 运行时
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: 应用汉化规则（汉化/汉化.ts → 代码/）
+      - name: 应用汉化规则（hanhua/汉化.ts → 代码/）
         id: hanhua
         run: |
           if ! bash scripts/apply-hanhua.sh; then
             echo "HANHUA_FAILED=true" >> "$GITHUB_ENV"
           fi
 
-      # 上游升级导致英文串变更、规则失效时，开 issue 提醒刷新 汉化/*.json，而非静默失败
+      # 上游升级导致英文串变更、规则失效时，开 issue 提醒刷新 hanhua/*.json，而非静默失败
       - name: 汉化失败 → 开 issue 报警
         if: env.HANHUA_FAILED == 'true'
         uses: actions/github-script@v7
@@ -104,7 +104,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               title: `汉化规则在 frp v${{ needs.check.outputs.version }} 上应用失败，请刷新`,
-              body: `上游已更新到 v${{ needs.check.outputs.version }}，部分 \`汉化/*.json\` 规则无法匹配（规则文件缺失或英文原文串已变更）。\n\n请本地按 \`汉化/汉化和修改.md\` 的映射，更新对应规则 json 后提交：\n\`\`\`bash\n# 1. 克隆 frp v${{ needs.check.outputs.version }} 到 代码/\n# 2. 修改 汉化/ 下失配的规则 json（原文串需与上游一致）\n# 3. 提交，重新 Run workflow\n\`\`\``,
+              body: `上游已更新到 v${{ needs.check.outputs.version }}，部分 \`hanhua/*.json\` 规则无法匹配（规则文件缺失或英文原文串已变更）。\n\n请本地按 \`hanhua/汉化和修改.md\` 的映射，更新对应规则 json 后提交：\n\`\`\`bash\n# 1. 克隆 frp v${{ needs.check.outputs.version }} 到 代码/\n# 2. 修改 汉化/ 下失配的规则 json（原文串需与上游一致）\n# 3. 提交，重新 Run workflow\n\`\`\``,
               labels: ['汉化待更新']
             })
 

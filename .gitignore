@@ -7,10 +7,8 @@
 !本地调试命令记录.md
 !汉化和修改.md
 # 汉化资产（规则 json + 执行脚本），CI 直接用于自动汉化，必须入库
-!汉化/
-!汉化/**
-!patch/
-!patch/**
+!hanhua
+!hanhua/**
 
 !图片/
 !图片/**
@@ -34,3 +32,7 @@ frpc.toml
 # 脱敏示例模板保留在仓库，供他人克隆后照填
 !frps.example.toml
 !frpc.example.toml
+# 敏感/系统文件
+.DS_Store
+example/**/frps.toml
+example/**/frpc.toml

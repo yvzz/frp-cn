@@ -4,13 +4,13 @@
 #
 # 前置条件:
 #   1. 本脚本必须在「仓库根目录」运行(CWD = frp-cn 根),
-#      因为 汉化/汉化.ts 内部用 process.cwd() 拼接绝对路径,
-#      且命令里 汉化.ts 以相对路径 ./汉化/汉化.ts 调用。
+#      因为 hanhua/汉化.ts 内部用 process.cwd() 拼接绝对路径,
+#      且命令里 汉化.ts 以相对路径 ./hanhua/汉化.ts 调用。
 #   2. frp 源码已克隆到 ./代码 (由 CI 的 git clone 步骤创建)。
 #   3. 已安装 Bun 运行时(本地: brew install oven-sh/bun; CI: oven-sh/setup-bun)。
 #
 # 行为:
-#   - 解析 汉化/汉化和修改.md 中所有 `bun ./汉化/汉化.ts <规则.json> <目标>` 命令
+#   - 解析 hanhua/汉化和修改.md 中所有 `bun ./hanhua/汉化.ts <规则.json> <目标>` 命令
 #   - 逐条执行,把中文规则灌入 frp 源码(原地覆盖写回)
 #   - 捕获每条的「未匹配」原文串;若任一规则文件缺失或存在未匹配,则非零退出
 #   - 末尾汇总,供 CI 失败时在 issue 中展示
@@ -27,8 +27,8 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 SRC_DIR="${REPO_ROOT}/代码"
-MANIFEST="${REPO_ROOT}/汉化/汉化和修改.md"
-RUNNER="${REPO_ROOT}/汉化/汉化.ts"
+MANIFEST="${REPO_ROOT}/hanhua/汉化和修改.md"
+RUNNER="${REPO_ROOT}/hanhua/汉化.ts"
 
 # ---- 环境检查 ----
 if [ ! -d "${SRC_DIR}" ]; then
@@ -53,12 +53,12 @@ if [ ! -f "${MANIFEST}" ]; then
 fi
 
 # ---- 从清单提取 bun 命令 ----
-# 每行形如:  bun ./汉化/汉化.ts 汉化/xxx.json 代码/path/to/file
+# 每行形如:  bun ./hanhua/汉化.ts hanhua/xxx.json 代码/path/to/file
 # 清单路径含中文目录,用 python 提取以避免 shell 引号/编码问题
 MAP_CMDS="$(python3 - "${MANIFEST}" <<'PY'
 import re, sys, io
 md = io.open(sys.argv[1], encoding='utf-8').read()
-for m in re.findall(r'bun\s+\./汉化/汉化\.ts\s+(\S+\.json)\s+(\S+)', md):
+for m in re.findall(r'bun\s+\./hanhua/汉化\.ts\s+(\S+\.json)\s+(\S+)', md):
     print(f"{m[0]}\t{m[1]}")
 PY
 )"
@@ -97,7 +97,7 @@ while IFS=$'\t' read -r RULE_FILE TARGET_FILE; do
   fi
 
   # 执行汉化.ts —— 必须在仓库根目录运行,因为它用 process.cwd() 拼路径
-  OUT="$(bun "./汉化/汉化.ts" "${RULE_FILE}" "${TARGET_FILE}" 2>&1)"
+  OUT="$(bun "./hanhua/汉化.ts" "${RULE_FILE}" "${TARGET_FILE}" 2>&1)"
   RC=$?
 
   if [ ${RC} -ne 0 ]; then
