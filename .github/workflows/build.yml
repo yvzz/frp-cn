@@ -50,16 +50,18 @@ jobs:
           DISPATCH_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
         run: |
           if [ -n "$DISPATCH_VERSION" ]; then
-            VER="$DISPATCH_VERSION"
+            # 手动指定版本：强制构建（即使与本地 VERSION 相同，也可用于把当前 tag 重建成多架构等）
+            echo "build=true"  >> "$GITHUB_OUTPUT"
+            echo "version=$DISPATCH_VERSION" >> "$GITHUB_OUTPUT"
           else
             VER="${{ steps.upstream.outputs.version }}"
-          fi
-          if [ "$VER" != "${{ steps.local.outputs.version }}" ]; then
-            echo "build=true"  >> "$GITHUB_OUTPUT"
-            echo "version=$VER" >> "$GITHUB_OUTPUT"
-          else
-            echo "build=false" >> "$GITHUB_OUTPUT"
-            echo "无新版本，跳过构建（本地 VERSION=${{ steps.local.outputs.version }} == 上游 ${{ steps.upstream.outputs.version }}）"
+            if [ "$VER" != "${{ steps.local.outputs.version }}" ]; then
+              echo "build=true"  >> "$GITHUB_OUTPUT"
+              echo "version=$VER" >> "$GITHUB_OUTPUT"
+            else
+              echo "build=false" >> "$GITHUB_OUTPUT"
+              echo "无新版本，跳过构建（本地 VERSION=${{ steps.local.outputs.version }} == 上游 ${{ steps.upstream.outputs.version }}）"
+            fi
           fi
 
   # ---------- 第二步：克隆源码 → 打汉化补丁 → 编译 → 推 DockerHub ----------
@@ -123,51 +125,29 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # amd64 镜像：沿用原 tag（:VERSION 与 :latest），保持现有部署不变
-      - name: 构建并推送 frps (amd64)
+      # 单 tag 多架构合并：amd64 + arm64 合并进同一个 :VERSION / :latest 标签。
+      # Docker 会按宿主机架构自动拉取对应镜像，无需 -arm64 单独标签。
+      - name: 构建并推送 frps (amd64 + arm64 合并)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile-frps
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:latest
 
-      # arm64 镜像：单独打 -arm64 标签，供 ARM 设备（树莓派、N1、飞牛等）使用
-      - name: 构建并推送 frps (arm64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile-frps
-          platforms: linux/arm64
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/frps:${{ env.VERSION }}-arm64
-
-      # amd64 镜像：沿用原 tag（:VERSION 与 :latest），保持现有部署不变
-      - name: 构建并推送 frpc (amd64)
+      - name: 构建并推送 frpc (amd64 + arm64 合并)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile-frpc
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:latest
-
-      # arm64 镜像：单独打 -arm64 标签，供 ARM 设备使用
-      - name: 构建并推送 frpc (arm64)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile-frpc
-          platforms: linux/arm64
-          push: true
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/frpc:${{ env.VERSION }}-arm64
 
       # 构建成功后，把 VERSION 回写为本次版本，下次定时任务据此跳过
       - name: 回写 VERSION 并提交
@@ -177,5 +157,9 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git add VERSION
-          git commit -m "chore: 构建 frp 汉化 v${{ env.VERSION }}"
-          git push
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 构建 frp 汉化 v${{ env.VERSION }}"
+            git push
+          else
+            echo "VERSION 未变化，跳过提交"
+          fi

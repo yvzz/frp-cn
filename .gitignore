@@ -31,5 +31,3 @@ frpc.toml
 # 脱敏示例模板保留在仓库，供他人克隆后照填
 !frps.example.toml
 !frpc.example.toml
-!run-frpc.sh
-!run-frps.sh

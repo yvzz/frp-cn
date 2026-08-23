@@ -13,11 +13,10 @@
 
 services:
   frpc:
-    # 镜像标签：默认 amd64。run-frpc.sh 会按宿主机架构自动换成 ...-arm64 版本
-    # 也可手动指定：FRP_IMAGE=yvvv/frpc:0.71.0-arm64 docker compose -f frpc-docker-compose.yml up -d
-    image: ${FRP_IMAGE:-yvvv/frpc:0.71.0}
-    # 也可用 :latest 标签，始终指向最新汉化版：
-    # image: ${FRP_IMAGE:-yvvv/frpc:latest}
+    # 镜像已是 amd64+arm64 多架构合并标签，Docker 会按宿主机架构自动拉取对应镜像
+    image: yvvv/frpc:0.71.0
+    # 也可改用 :latest 标签，始终指向最新汉化版：
+    # image: yvvv/frpc:latest
     container_name: frpc
     restart: unless-stopped
     # network_mode: host
