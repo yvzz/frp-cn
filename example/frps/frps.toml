@@ -1,0 +1,30 @@
+# frps.toml —— 服务端配置（适配 yvvv/frps 汉化镜像）
+# 完整配置参考官方文档：https://gofrp.org/zh-cn/docs/
+
+# 客户端连接端口（host 模式下即直接绑宿主机 7000）
+bindPort = 7000
+
+# Web 控制台（host 模式下直接绑宿主机 7500，浏览器访问 http://<服务器IP>:7500）
+webServer.addr = "0.0.0.0"
+webServer.port = 7500
+webServer.user = "admin"
+webServer.password = "admin123"
+
+# 鉴权 token（所有 frpc 客户端必须填写一致的值）
+auth.method = "token"
+auth.token = "159357456258"
+
+# 启用 HTTP/HTTPS 类型代理时需放开对应 vhost 端口
+# ⚠️ 注意：host 模式下 frps 直接绑宿主机端口。若宿主机 80/443 已被占用
+#    （如 NAS 自带的 nginx 监听 0.0.0.0:80/443），frps 启动会因端口冲突直接退出
+#    （表现为容器 Restarting）。故此处改用非特权端口 8080/8443，避开系统服务。
+#    客户端从公网访问时需带端口，如 http://域名:8080 、https://域名:8443。
+vhostHTTPPort = 8080
+vhostHTTPSPort = 8443
+
+# 日志
+log.to = "console"
+log.level = "info"
+log.maxDays = 3
+
+# 注：本镜像已将中文界面编译进二进制，无需 assetsDir；如需自定义静态资源再另行挂载。

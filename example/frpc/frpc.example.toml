@@ -24,6 +24,15 @@ log.to = "console"
 log.level = "info"
 log.maxDays = 3
 
+# ===== 运行态存储（storage）=====
+# frpc 把运行态数据（OIDC/token 缓存、连接元数据）持久化到本地，重启免重新申请。
+# 官方 frp 用 [storage] 段（目录存储），不是旧式 [store] + path 写法。
+# directory 指向容器内的 /frp/storage，需在 compose 里挂载持久卷才能跨重启保留。
+[storage]
+type = "file"
+directory = "/frp/storage"
+# cleanupTimeout = "168h"  # 可选：条目最长保留时间（默认 0 = 永不过期）；168h = 7 天
+
 # ===== Web 管理面板（可选）=====
 # 访问地址：http://<本机IP>:7400  （bridge 模式需在 compose 里映射 7400:7400）
 webServer.addr = "0.0.0.0"

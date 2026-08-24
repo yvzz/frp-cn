@@ -23,6 +23,14 @@ services:
     volumes:
       # 注意：不要加 :ro，否则 Web 面板"更新并重载"写回 /frp/frpc.toml 会失败(HTTP 500)
       - ./frpc.toml:/frp/frpc.toml
+      # frpc 运行态存储持久化（对应 frpc.toml 的 [storage].directory = /frp/storage）
+      # 不挂载则容器重建后存储数据丢失，但不影响正常连接（仅重新申请 token 缓存）。
+      - frpc-storage:/frp/storage
+
+# 具名卷：frpc 运行态数据存储，跨容器重建保留
+volumes:
+  frpc-storage:
+
     # bridge 模式下，让容器内 host.docker.internal 指向宿主机（配合 frpc.toml 里 serverAddr = "host.docker.internal" 连同机 frps）
     extra_hosts:
       - "host.docker.internal:host-gateway"
