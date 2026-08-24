@@ -196,6 +196,156 @@ else
   echo "  [WARN] 未找到 ${WEB_DIR}，跳过徽标清除"
 fi
 
+# ---- 自动化清单中的手动步骤：前端函数注入 ----
+# 汉化 JSON 规则把模板 {{ proxy.status }} 替换为 {{ fn代理状态转换(proxy.status) }}，
+# 但汉化和修改.md 中"增加函数"是手动步骤，CI 不会执行。
+# 若不注入这些函数，Vue 运行时找不到 fn代理状态转换 → ProxyCard 渲染崩溃 →
+# 整个代理列表 v-for 不渲染（StatusPills 摘要计数不受影响，因为不依赖该函数）。
+# 这里在汉化替换后幂等注入所需函数，保证 CI 产物功能完整。
+echo "--------------------------------------------------"
+echo " 自动化手动步骤：前端函数注入"
+echo "--------------------------------------------------"
+python3 - "${SRC_DIR}" <<'PYEOF'
+import io, os, sys, re
+
+src = sys.argv[1]
+
+# ---- fn代理状态转换 (ProxyCard.vue + ProxyDetail.vue) ----
+fn_status = (
+    '\nconst fn代理状态转换 = (状态: string) => {\n'
+    '  switch (状态) {\n'
+    '    case "running": return "运行中"\n'
+    '    case "error": return "错误"\n'
+    '    case "disabled": return "禁用"\n'
+    '    case "waiting": return "等待中"\n'
+    '    case "new": return "新创建"\n'
+    '    case "wait start": return "等待启动"\n'
+    '    case "start error": return "启动失败"\n'
+    '    case "check failed": return "检查失败"\n'
+    '    case "closed": return "已关闭"\n'
+    '    default: return 状态\n'
+    '  }\n'
+    '}\n'
+)
+
+# ---- fn代理错误信息转换 (ProxyDetail.vue only) ----
+fn_err = (
+    '\nconst fn代理错误信息转换 = (错误信息: string) => {\n'
+    '  switch (错误信息) {\n'
+    '    case "port already used": return "端口已被占用"\n'
+    '    case "port not allowed": return "不允许使用该端口"\n'
+    '    case "port unavailable": return "端口不可用"\n'
+    '    case "no available port": return "没有可用端口"\n'
+    '    default: return 错误信息\n'
+    '  }\n'
+    '}\n'
+)
+
+def inject_before_close_script(path, code, marker, label):
+    """在 </script> 前注入代码。marker 必须是函数定义特征（如 'const fn...'），
+    不能仅用函数名，因为汉化后模板中已有 {{ fn...(proxy.status) }} 引用，
+    用函数名做幂等检查会误判为"已存在"而跳过注入。"""
+    if not os.path.isfile(path):
+        print(f"  [WARN] 未找到 {path}，跳过 {label}")
+        return
+    s = io.open(path, encoding='utf-8').read()
+    if marker in s:
+        print(f"  [SKIP] {label} 已含 {marker}")
+        return
+    idx = s.rfind('</script>')
+    if idx < 0:
+        print(f"  [FAIL] {label} 未找到 </script> 标记")
+        return
+    s = s[:idx] + code + s[idx:]
+    io.open(path, 'w', encoding='utf-8').write(s)
+    print(f"  [OK] {label} 已注入 {marker}")
+
+# 1. ProxyCard.vue: fn代理状态转换
+inject_before_close_script(
+    os.path.join(src, 'web/frpc/src/components/ProxyCard.vue'),
+    fn_status, 'const fn代理状态转换', 'ProxyCard.vue')
+
+# 2. ProxyDetail.vue: fn代理状态转换 + fn代理错误信息转换
+detail_path = os.path.join(src, 'web/frpc/src/views/ProxyDetail.vue')
+if os.path.isfile(detail_path):
+    s = io.open(detail_path, encoding='utf-8').read()
+    if 'const fn代理错误信息转换' in s:
+        print("  [SKIP] ProxyDetail.vue 已含函数")
+    else:
+        idx = s.rfind('</script>')
+        if idx >= 0:
+            s = s[:idx] + fn_status + fn_err + s[idx:]
+            io.open(detail_path, 'w', encoding='utf-8').write(s)
+            print("  [OK] ProxyDetail.vue 已注入 fn代理状态转换 + fn代理错误信息转换")
+        else:
+            print("  [FAIL] ProxyDetail.vue 未找到 </script>")
+else:
+    print("  [WARN] 未找到 ProxyDetail.vue")
+
+# 3. App.vue: visitors router-link 加 title 说明
+app_path = os.path.join(src, 'web/frpc/src/App.vue')
+if os.path.isfile(app_path):
+    s = io.open(app_path, encoding='utf-8').read()
+    title_text = '主动通过 P2P 隧道（xtcp/stcp）连接的客户端'
+    if title_text in s:
+        print("  [SKIP] App.vue 已含 visitors 说明 title")
+    else:
+        # 在 to="/visitors" 属性后插入 title 属性
+        new_s, n = re.subn(
+            r'(to=["\']/visitors["\'])',
+            lambda m: m.group(0) + f' title="{title_text}"',
+            s, count=1
+        )
+        if n > 0:
+            io.open(app_path, 'w', encoding='utf-8').write(new_s)
+            print("  [OK] App.vue visitors router-link 已加 title")
+        else:
+            print("  [WARN] App.vue 未找到 visitors router-link")
+
+# 4. VisitorList.vue: 加说明 div
+vl_path = os.path.join(src, 'web/frpc/src/views/VisitorList.vue')
+if os.path.isfile(vl_path):
+    s = io.open(vl_path, encoding='utf-8').read()
+    hint = '此处的功能为私密转发以及P2P链接，不是普通的内网穿透！一般用不到！'
+    if hint in s:
+        print("  [SKIP] VisitorList.vue 已含说明 div")
+    else:
+        idx = s.find('</h2>')
+        if idx >= 0:
+            insert_at = idx + len('</h2>')
+            new_s = s[:insert_at] + f'\n      <div>{hint}</div>' + s[insert_at:]
+            io.open(vl_path, 'w', encoding='utf-8').write(new_s)
+            print("  [OK] VisitorList.vue 已加说明 div")
+        else:
+            print("  [WARN] VisitorList.vue 未找到 </h2> 标记")
+
+# 5. frps 前端 ProxyCard.vue / ProxyDetail.vue 同样需要注入（如果存在）
+frps_card = os.path.join(src, 'web/frps/src/components/ProxyCard.vue')
+inject_before_close_script(
+    frps_card, fn_status, 'const fn代理状态转换', 'frps ProxyCard.vue')
+
+frps_detail = os.path.join(src, 'web/frps/src/views/ProxyDetail.vue')
+if os.path.isfile(frps_detail):
+    s = io.open(frps_detail, encoding='utf-8').read()
+    if 'const fn代理错误信息转换' in s:
+        print("  [SKIP] frps ProxyDetail.vue 已含函数")
+    else:
+        idx = s.rfind('</script>')
+        if idx >= 0:
+            s = s[:idx] + fn_status + fn_err + s[idx:]
+            io.open(frps_detail, 'w', encoding='utf-8').write(s)
+            print("  [OK] frps ProxyDetail.vue 已注入函数")
+        else:
+            print("  [WARN] frps ProxyDetail.vue 未找到 </script>")
+else:
+    print("  [INFO] frps ProxyDetail.vue 不存在，跳过")
+
+PYEOF
+if [ $? -ne 0 ]; then
+  echo "  [FAIL] 前端函数注入步骤执行出错"
+  FAIL_LIST+=("前端函数注入失败")
+fi
+
 
 if [ ${#FAIL_LIST[@]} -gt 0 ]; then
   echo ""
