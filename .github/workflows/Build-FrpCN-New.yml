@@ -39,15 +39,15 @@ jobs:
       build_frps: ${{ steps.decide.outputs.build_frps }}
       build_frpc: ${{ steps.decide.outputs.build_frpc }}
     steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 1
+
       - name: Check Server Performance
         run: |
           echo "CPU核心: $(nproc)"
           echo "CPU型号: $(cat /proc/cpuinfo | grep -m1 name | awk -F: '{print $2}')"
           echo "内存: $(free -h | grep Mem | awk '{print $2}')"
-
-      - uses: actions/checkout@v7.0.1
-        with:
-          fetch-depth: 1
 
       - name: 获取上游最新版本号
         id: upstream
