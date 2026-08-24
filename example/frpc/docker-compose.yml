@@ -1,6 +1,9 @@
 # frpc 客户端部署（基于你自己的 DockerHub 汉化镜像）
 # 镜像：yvvv/frpc  —— 已内嵌中文网页界面，无需额外挂载静态资源
 # 配置：./frpc.toml 挂载到容器内 /frp/frpc.toml（镜像固定以 -c /frp/frpc.toml 启动）
+# 动态存储：用具名卷 frpc-store 挂到容器内 /frp/store（启用网页「代理 → Store」标签页，
+#           frpc.toml 需配 [store] path = "/frp/store/frpc_store.json"）。用目录卷而非挂载单文件，
+#           可避免"宿主机缺文件时 Docker 自动建成目录"导致 frpc 启动读文件报错退出。
 # 网络：默认 bridge 模式（frpc 主要建立出站连接）。
 #       若 frpc 与 frps 在同一台机器、或代理需要绑定宿主机端口，
 #       取消下方 network_mode: host 注释即可（host 模式下 frpc.toml 的 serverAddr 改填 127.0.0.1）。
@@ -13,27 +16,19 @@
 
 services:
   frpc:
-    # 镜像已是 amd64+arm64 多架构合并标签，Docker 会按宿主机架构自动拉取对应镜像
     image: yvvv/frpc:0.71.0
-    # 也可改用 :latest 标签，始终指向最新汉化版：
-    # image: yvvv/frpc:latest
     container_name: frpc
     restart: unless-stopped
-    # network_mode: host
+    # network_mode: host  # 如果你取消注释这行，下面的 ports 就会失效，因为 host 模式直接占用宿主机端口
     volumes:
-      # 注意：不要加 :ro，否则 Web 面板"更新并重载"写回 /frp/frpc.toml 会失败(HTTP 500)
       - ./frpc.toml:/frp/frpc.toml
-      # frpc 运行态存储持久化（对应 frpc.toml 的 [storage].directory = /frp/storage）
-      # 不挂载则容器重建后存储数据丢失，但不影响正常连接（仅重新申请 token 缓存）。
-      - frpc-storage:/frp/storage
-
-# 具名卷：frpc 运行态数据存储，跨容器重建保留
-volumes:
-  frpc-storage:
-
-    # bridge 模式下，让容器内 host.docker.internal 指向宿主机（配合 frpc.toml 里 serverAddr = "host.docker.internal" 连同机 frps）
+      - frpc-store:/frp/store   # 动态配置存储（网页 Store 标签页）：用目录卷，frpc 自会在里面建 frpc_store.json；容器重建后代理不丢
+    # 这两个配置是服务级别的，需要顶格（与 image、volumes 同级）
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    # frpc Web 管理面板端口（需在 frpc.toml 启用 webServer）；不需要可删掉本行
     ports:
       - "7400:7400"
+
+# 具名卷定义（不要在这里写 extra_hosts 或 ports）
+volumes:
+  frpc-store:

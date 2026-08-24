@@ -24,14 +24,14 @@ log.to = "console"
 log.level = "info"
 log.maxDays = 3
 
-# ===== 运行态存储（storage）=====
-# frpc 把运行态数据（OIDC/token 缓存、连接元数据）持久化到本地，重启免重新申请。
-# 官方 frp 用 [storage] 段（目录存储），不是旧式 [store] + path 写法。
-# directory 指向容器内的 /frp/storage，需在 compose 里挂载持久卷才能跨重启保留。
-[storage]
-type = "file"
-directory = "/frp/storage"
-# cleanupTimeout = "168h"  # 可选：条目最长保留时间（默认 0 = 永不过期）；168h = 7 天
+# ===== 动态配置存储（store，可选）=====
+# ⚠️ 本汉化镜像的 frpc 二进制只认 [store] 段，不认 [storage]（运行态存储）！
+#    写 [storage] 会直接报 "json: unknown field \"storage\"" 导致启动失败，请勿添加。
+# 启用后网页才会出现「代理 → Store」标签页，可在线创建/编辑代理，重启后依然保留。
+# path 必须落在 compose 挂载的 frpc-store 卷目录内（/frp/store/frpc_store.json）；用目录卷而非挂载单文件，
+# 可避免"宿主机缺文件时 Docker 建成目录"导致 frpc 启动读文件报错退出。
+# [store]
+# path = "/frp/store/frpc_store.json"
 
 # ===== Web 管理面板（可选）=====
 # 访问地址：http://<本机IP>:7400  （bridge 模式需在 compose 里映射 7400:7400）

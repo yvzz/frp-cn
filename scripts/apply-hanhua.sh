@@ -162,6 +162,40 @@ else
   echo "  [WARN] 未找到 ${MAIN_TS}，跳过 main.ts 注入（可能上游已移除该文件）"
 fi
 
+# ---- 移除作者署名徽标（bilibili 链接锚点）----
+# 无论 代码/ 里是否残留原作者徽标，构建前强制清除，保证编译产物不含该 UI 标记。
+# 匹配 <a ... href="...space.bilibili.com/17547201 ...">...</a> 整段，并兜底删除其中文文本。
+WEB_DIR="${SRC_DIR}/web"
+if [ -d "${WEB_DIR}" ]; then
+  python3 - "${WEB_DIR}" <<'PY'
+import io, re, os, sys, glob
+root = sys.argv[1]
+anchor = re.compile(r'<a\b[^>]*\bhref=["\']https?://space\.bilibili\.com/17547201[^>]*>.*?</a>', re.S)
+text = "汉化：B站 秦曱凧"
+removed_files = []
+for path in glob.glob(os.path.join(root, '**', '*.vue'), recursive=True):
+    s = io.open(path, encoding='utf-8').read()
+    new, n_anchor = anchor.subn('', s)
+    n_text = new.count(text)
+    if n_text:
+        new = new.replace(text, '')
+    if n_anchor or n_text:
+        io.open(path, 'w', encoding='utf-8').write(new)
+        removed_files.append((path, n_anchor, n_text))
+if removed_files:
+    for p, a, t in removed_files:
+        print(f"  [OK] 已清除徽标: {p} (锚点 {a} 处, 文本 {t} 处)")
+else:
+    print("  [SKIP] 未发现 bilibili 署名徽标（已清除或无该元素）")
+PY
+  if [ $? -ne 0 ]; then
+    echo "  [FAIL] 徽标清除步骤执行出错"
+    FAIL_LIST+=("web 徽标清除失败")
+  fi
+else
+  echo "  [WARN] 未找到 ${WEB_DIR}，跳过徽标清除"
+fi
+
 
 if [ ${#FAIL_LIST[@]} -gt 0 ]; then
   echo ""
