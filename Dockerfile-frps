@@ -14,8 +14,14 @@ COPY 代码/go.mod 代码/go.sum ./
 RUN go mod download
 
 # 复制源代码
-
 COPY 代码 /building
+
+# 校验前端产物已生成且非空 —— frps dashboard 前端靠 //go:embed dist 内嵌进二进制，
+# 若前端 build 失败/没跑导致 dist 空或缺失，embed 会静默内嵌空内容，dashboard 返回空白页。
+RUN test -s web/frps/dist/index.html && \
+    test -n "$(ls web/frps/dist/*.js 2>/dev/null)" && \
+    echo "[OK] frps 前端产物存在: $(ls -la web/frps/dist/ | wc -l) 项" || \
+    { echo "[FAIL] web/frps/dist 缺失或为空，请检查 CI 前端编译步骤"; exit 1; }
 
 RUN env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -tags frps -o bin/frps ./cmd/frps
 
