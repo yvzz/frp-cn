@@ -118,6 +118,28 @@ jobs:
       - name: 克隆 frp v${{ env.VERSION }} 源码
         run: git clone --depth 1 --branch "v${{ env.VERSION }}" https://github.com/fatedier/frp.git 代码
 
+      # 上游每个版本可能抬高 go.mod 的 `go` 指令（v0.71.0 是 1.24，v0.71.1 已是 1.26.0）。
+      # 若 Dockerfile 写死 golang:1.25，go mod download 会直接报
+      # "go.mod requires go >= 1.26.0 (running go 1.25.x; GOTOOLCHAIN=local)" 而构建失败。
+      # 这里解析 go.mod 拿到所需主次版本，通过 build-arg 传给 Dockerfile，避免每次升级手工改镜像标签。
+      - name: 检测上游 go.mod 要求的 Go 版本
+        id: goversion
+        run: |
+          set -e
+          GO_VER=$(grep -E '^go[[:space:]]+[0-9]+\.[0-9]+' 代码/go.mod | head -1 | awk '{print $2}')
+          if [ -z "$GO_VER" ]; then
+            GO_VER="1.26"
+            echo "[WARN] 未能从 go.mod 解析 go 指令，回退使用默认 $GO_VER"
+          fi
+          # go.mod 的 go 指令是最低要求，取主次版本即可（golang:1.26 标签始终指向 1.26.x 最新补丁）
+          GO_MINOR=$(echo "$GO_VER" | cut -d. -f1,2)
+          echo "上游 go.mod: go $GO_VER  →  构建镜像 golang:$GO_MINOR"
+          echo "go_version=$GO_MINOR" >> "$GITHUB_OUTPUT"
+          echo "GO_VERSION=$GO_MINOR" >> "$GITHUB_ENV"
+          echo "### Go 工具链
+
+          上游 \`go.mod\` 要求 \`go $GO_VER\`，本次使用 \`golang:$GO_MINOR\` 构建。" >> "$GITHUB_STEP_SUMMARY"
+
       # ---------- 自动汉化（规则驱动，无需 manual.patch，完全脱离本地） ----------
       # 汉化资产(hanhua/*.json + hanhua/汉化.ts)已随仓库 checkout，
       # 这里用 Bun 跑 hanhua/汉化.ts 把中文规则灌入 代码/ 源码（原地覆盖）。
@@ -201,6 +223,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           no-cache: true
+          build-args: |
+            GO_VERSION=${{ env.GO_VERSION }}
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frps:latest
@@ -214,6 +238,8 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           no-cache: true
+          build-args: |
+            GO_VERSION=${{ env.GO_VERSION }}
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:${{ env.VERSION }}
             ${{ secrets.DOCKERHUB_USERNAME }}/frpc:latest

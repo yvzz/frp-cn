@@ -1,5 +1,10 @@
 # 编译
-FROM golang:1.25 AS building
+# Go 版本由 CI 依据上游 go.mod 的 `go` 指令动态注入（build-arg GO_VERSION）。
+# 上游 frp v0.71.1 起 go.mod 要求 go >= 1.26.0，固定写死 golang:1.25 会因
+# "go.mod requires go >= 1.26.0 (running go 1.25.x; GOTOOLCHAIN=local)" 直接构建失败。
+# 默认值 1.26 仅作本地/兜底，CI 会传实际所需版本。
+ARG GO_VERSION=1.26
+FROM golang:${GO_VERSION} AS building
 
 # 设置国内镜像源
 RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
