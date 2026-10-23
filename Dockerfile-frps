@@ -6,8 +6,14 @@
 ARG GO_VERSION=1.26
 FROM golang:${GO_VERSION} AS building
 
-# 设置国内镜像源
-RUN go env -w GOPROXY=https://mirrors.aliyun.com/goproxy/,direct
+# Go 依赖代理源。
+# GitHub Actions runner 位于海外，访问国内镜像属跨境链路，下载 k8s.io/client-go 这类
+# 大 zip 时极易出现 "stream error: stream ID 503; INTERNAL_ERROR; received from peer"。
+# 注意：Go 的 GOPROXY 逗号列表仅在 404/410 时才 fallback，网络层错误不会自动切换，
+# 因此下面用 shell 循环显式轮换多个源并逐个重试。
+ENV GOPROXY=https://proxy.golang.org,direct
+# 关闭客户端 HTTP/2，强制走 HTTP/1.1，规避跨境链路上的 HTTP/2 INTERNAL_ERROR。
+ENV GODEBUG=http2client=0
 
 # 设置工作目录
 WORKDIR /building
@@ -15,8 +21,21 @@ WORKDIR /building
 # 复制 go.mod 和 go.sum 文件（如果存在）
 COPY 代码/go.mod 代码/go.sum ./
 
-# 下载 Go 依赖项，利用 Docker 缓存机制
-RUN go mod download
+# 下载 Go 依赖项，利用 Docker 缓存机制；多源轮换 + 重试，抵御代理源瞬时抖动
+RUN set -eu; \
+    for proxy in "https://proxy.golang.org,direct" "https://goproxy.cn,direct" "https://mirrors.aliyun.com/goproxy/,direct"; do \
+      for attempt in 1 2 3; do \
+        echo "[go mod download] proxy=$proxy attempt=$attempt"; \
+        if GOPROXY="$proxy" go mod download; then \
+          echo "[OK] 依赖下载成功 via $proxy"; \
+          exit 0; \
+        fi; \
+        echo "[WARN] 下载失败，5 秒后重试"; \
+        sleep 5; \
+      done; \
+    done; \
+    echo "[FAIL] 所有 Go 代理源均下载失败"; \
+    exit 1
 
 # 复制源代码
 COPY 代码 /building
@@ -33,8 +52,11 @@ RUN env CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -tags frps -o bin/frps
 # 最终镜像
 FROM alpine:3.23
 
-# 使用国内镜像源
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories && \
+# 软件源：国内镜像在前、官方源在后一并写入，apk 会依次尝试，
+# 避免单一源跨境抖动/超时导致构建失败（此前中科大源单次耗时可达 250s）
+RUN cp /etc/apk/repositories /etc/apk/repositories.bak && \
+    sed -i 's|dl-cdn.alpinelinux.org|mirrors.ustc.edu.cn|g' /etc/apk/repositories && \
+    cat /etc/apk/repositories.bak >> /etc/apk/repositories && \
     apk add --no-cache tzdata
 
 COPY --from=building /building/bin/frps /usr/bin/frps
